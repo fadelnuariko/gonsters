@@ -3,14 +3,16 @@ from influxdb_client import Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 from app.config import config
 from app.utils.logger import logger
+from app.services.cache_service import cache_service, cache_aside
 from datetime import datetime
 
 class MachineRepository:
     """Repository for machine metadata operations"""
 
     @staticmethod
+    @cache_aside(key_prefix="machines:all", ttl=600)
     def get_all_machines():
-        """Get all machines from PostgreSQL"""
+        """Get all machines from PostgreSQL with caching"""
         conn = get_postgres_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM machine_metadata ORDER BY id")
@@ -20,8 +22,9 @@ class MachineRepository:
         return machines
 
     @staticmethod
+    @cache_aside(key_prefix="machine", ttl=600)
     def get_machine_by_id(machine_id):
-        """Get machine by ID"""
+        """Get machine by ID with caching"""
         conn = get_postgres_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM machine_metadata WHERE id = %s", (machine_id,))
@@ -32,7 +35,7 @@ class MachineRepository:
 
     @staticmethod
     def create_machine(machine_data):
-        """Create new machine"""
+        """Create new machine and invalidate cache"""
         conn = get_postgres_connection()
         cursor = conn.cursor()
         cursor.execute("""
@@ -44,6 +47,10 @@ class MachineRepository:
         conn.commit()
         cursor.close()
         conn.close()
+        
+        cache_service.invalidate_pattern("machines:*")
+        cache_service.invalidate_pattern("machine:*")
+        
         return machine
 
 class SensorDataRepository:
