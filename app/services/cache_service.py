@@ -1,8 +1,18 @@
 import json
 import time
+from datetime import datetime
 from functools import wraps
 from app.database import get_redis_client
 from app.utils.logger import logger
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder for datetime objects"""
+
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
 
 
 class CacheService:
@@ -78,7 +88,7 @@ class CacheService:
         """
         try:
             client = self._get_client()
-            serialized_value = json.dumps(value)
+            serialized_value = json.dumps(value, cls=DateTimeEncoder)
             client.setex(key, ttl, serialized_value)
 
             logger.debug(f"Cache set for key: {key} with TTL: {ttl}s")
@@ -115,6 +125,29 @@ class CacheService:
 
         except Exception as e:
             logger.error(f"Error invalidating cache pattern {pattern}: {e}")
+
+    def invalidate_machine_cache(self, machine_id=None):
+        """
+        Invalidate machine-related cache entries
+
+        Args:
+            machine_id: Specific machine ID to invalidate, or None for all machines
+        """
+        try:
+            if machine_id:
+                # Invalidate specific machine cache
+                self.delete(f"machine:{machine_id}")
+                logger.debug(f"Invalidated cache for machine {machine_id}")
+            else:
+                # Invalidate all machine caches
+                self.invalidate_pattern("machine:*")
+
+            # Always invalidate the machines list cache
+            self.delete("machines:all")
+            logger.debug("Invalidated machines list cache")
+
+        except Exception as e:
+            logger.error(f"Error invalidating machine cache: {e}")
 
 
 def cache_aside(key_prefix: str, ttl: int = 300):
