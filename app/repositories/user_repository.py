@@ -85,6 +85,29 @@ class UserRepository:
             conn.close()
 
     @staticmethod
+    def get_all_users():
+        """Get all users"""
+        conn = get_postgres_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute(
+                """
+                SELECT id as user_id, username, role, created_at
+                FROM users
+                ORDER BY created_at DESC
+            """
+            )
+
+            users = cursor.fetchall()
+            logger.info(f"Retrieved {len(users)} users from database")
+            return users
+
+        finally:
+            cursor.close()
+            conn.close()
+
+    @staticmethod
     def authenticate_user(username: str, password: str):
         """Authenticate user credentials"""
         user = UserRepository.get_user_by_username(username)
