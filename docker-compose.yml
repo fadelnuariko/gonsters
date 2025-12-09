@@ -113,6 +113,32 @@ services:
       - gonsters-network
     restart: unless-stopped
 
+  # IoT Device Simulator (Optional - simulates machines sending sensor data)
+  simulator:
+    build: .
+    container_name: gonsters-simulator
+    command: python simulator.py
+    environment:
+      MQTT_BROKER: mosquitto
+      MQTT_PORT: 1883
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: gonsters_metadata
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+      SIMULATOR_INTERVAL: 5
+      SIMULATOR_FACTORY_ID: A
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    networks:
+      - gonsters-network
+    restart: unless-stopped
+    profiles:
+      - simulator  # Only starts when explicitly requested
+
 volumes:
   postgres_data:
   influxdb_data:
