@@ -1,192 +1,108 @@
-from app.database import get_postgres_connection, get_influxdb_client
-from influxdb_client import Point
-from influxdb_client.client.write_api import SYNCHRONOUS
-from app.config import config
-from app.utils.logger import logger
-from app.services.cache_service import cache_service
-from datetime import datetime
+from flask import Blueprint, request, jsonify
+from app.controllers.data_controller import DataController, MachineController
+from app.controllers.auth_controller import AuthController
+from app.api.auth import token_required, role_required
 
-class MachineRepository:
-    """Repository for machine metadata operations with caching"""
+api_bp = Blueprint("api", __name__)
 
-    @staticmethod
-    def get_all_machines():
-        """Get all machines from PostgreSQL with caching"""
-        cache_key = "machines:all"
 
-        cached_machines = cache_service.get(cache_key)
-        if cached_machines is not None:
-            logger.info("Retrieved machines from cache")
-            return cached_machines
+# ============ Health Check ============
+@api_bp.route("/health", methods=["GET"])
+def health_check():
+    """Health check endpoint"""
+    return jsonify({"status": "healthy", "service": "gonsters-backend"}), 200
 
-        conn = get_postgres_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM machine_metadata ORDER BY id")
-        machines = cursor.fetchall()
-        cursor.close()
-        conn.close()
 
-        cache_service.set(cache_key, machines, ttl=300)
-        logger.info("Retrieved machines from database and cached")
+# ============ Authentication ============
+@api_bp.route("/auth/register", methods=["POST"])
+def register():
+    """User registration endpoint"""
+    response, status_code = AuthController.register(request.json)
+    return jsonify(response), status_code
 
-        return machines
 
-    @staticmethod
-    def get_machine_by_id(machine_id):
-        """Get machine by ID with caching"""
-        cache_key = f"machine:{machine_id}"
+@api_bp.route("/auth/login", methods=["POST"])
+def login():
+    """User login endpoint"""
+    response, status_code = AuthController.login(request.json)
+    return jsonify(response), status_code
 
-        cached_machine = cache_service.get(cache_key)
-        if cached_machine is not None:
-            logger.info(f"Retrieved machine {machine_id} from cache")
-            return cached_machine
 
-        conn = get_postgres_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM machine_metadata WHERE id = %s", (machine_id,))
-        machine = cursor.fetchone()
-        cursor.close()
-        conn.close()
+@api_bp.route("/auth/me", methods=["GET"])
+@token_required
+def get_current_user():
+    """Get current authenticated user info"""
+    return jsonify({"status": "success", "user": request.current_user}), 200
 
-        if machine:
-            cache_service.set(cache_key, machine, ttl=300)
-            logger.info(f"Retrieved machine {machine_id} from database and cached")
 
-        return machine
+# ============ Data Ingestion & Retrieval ============
+@api_bp.route("/data/ingest", methods=["POST"])
+@token_required
+@role_required("Operator")
+def ingest_data():
+    """Endpoint for ingesting sensor data (Operator+)"""
+    response, status_code = DataController.ingest_sensor_data(request.json)
+    return jsonify(response), status_code
 
-    @staticmethod
-    def create_machine(machine_data):
-        """Create new machine and invalidate cache"""
-        conn = get_postgres_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO machine_metadata (name, location, sensor_type, status)
-            VALUES (%(name)s, %(location)s, %(sensor_type)s, %(status)s)
-            RETURNING *
-        """, machine_data)
-        machine = cursor.fetchone()
-        conn.commit()
-        cursor.close()
-        conn.close()
 
-        cache_service.invalidate_machine_cache()
-        logger.info(f"Created machine {machine['id']} and invalidated cache")
+@api_bp.route("/data/machine/<int:machine_id>", methods=["GET"])
+@token_required
+@role_required("Operator")
+def get_machine_data(machine_id):
+    """Endpoint for retrieving machine historical data (Operator+)"""
+    start_time = request.args.get("start_time")
+    end_time = request.args.get("end_time")
+    interval = request.args.get("interval", "1h")
 
-        return machine
+    response, status_code = DataController.get_machine_data(
+        machine_id, start_time, end_time, interval
+    )
+    return jsonify(response), status_code
 
-    @staticmethod
-    def update_machine(machine_id, machine_data):
-        """Update machine and invalidate cache"""
-        conn = get_postgres_connection()
-        cursor = conn.cursor()
 
-        update_fields = []
-        values = []
-        for key, value in machine_data.items():
-            update_fields.append(f"{key} = %s")
-            values.append(value)
+# ============ Machine Metadata Management ============
+@api_bp.route("/machines", methods=["GET"])
+@token_required
+@role_required("Operator")
+def get_machines():
+    """Get all machines (Operator+)"""
+    response, status_code = MachineController.get_all_machines()
+    return jsonify(response), status_code
 
-        values.append(machine_id)
 
-        query = f"""
-            UPDATE machine_metadata
-            SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP
-            WHERE id = %s
-            RETURNING *
-        """
+@api_bp.route("/machines/<int:machine_id>", methods=["GET"])
+@token_required
+@role_required("Operator")
+def get_machine(machine_id):
+    """Get machine by ID (Operator+)"""
+    response, status_code = MachineController.get_machine(machine_id)
+    return jsonify(response), status_code
 
-        cursor.execute(query, values)
-        machine = cursor.fetchone()
-        conn.commit()
-        cursor.close()
-        conn.close()
 
-        cache_service.invalidate_machine_cache(machine_id)
-        logger.info(f"Updated machine {machine_id} and invalidated cache")
+@api_bp.route("/machines", methods=["POST"])
+@token_required
+@role_required("Supervisor")
+def create_machine():
+    """Create new machine (Supervisor+)"""
+    response, status_code = MachineController.create_machine(request.json)
+    return jsonify(response), status_code
 
-        return machine
 
-class SensorDataRepository:
-    """Repository for sensor data operations with InfluxDB"""
-
-    @staticmethod
-    def write_sensor_data(data_points):
-        """Write sensor data to InfluxDB"""
-        client = None
-        try:
-            client = get_influxdb_client()
-            write_api = client.write_api(write_options=SYNCHRONOUS)
-
-            points = []
-            for data_point in data_points:
-                timestamp = data_point['timestamp']
-                if isinstance(timestamp, str):
-                    timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-
-                point = Point("sensor_data") \
-                    .tag("machine_id", str(data_point['machine_id'])) \
-                    .tag("sensor_type", data_point['sensor_type']) \
-                    .tag("unit", data_point['unit']) \
-                    .field("value", float(data_point['value'])) \
-                    .time(timestamp)
-                points.append(point)
-
-            write_api.write(
-                bucket=config.INFLUXDB_BUCKET,
-                org=config.INFLUXDB_ORG,
-                record=points
-            )
-
-            logger.info(f"Successfully wrote {len(points)} data points to InfluxDB")
-            return True
-
-        except Exception as e:
-            logger.error(f"Error writing to InfluxDB: {e}", exc_info=True)
-            raise
-        finally:
-            if client:
-                client.close()
-
-    @staticmethod
-    def query_sensor_data(machine_id, start_time, end_time, interval='1h'):
-        """Query sensor data from InfluxDB"""
-        client = None
-        try:
-            client = get_influxdb_client()
-            query_api = client.query_api()
-
-            query = f'''
-                from(bucket: "{config.INFLUXDB_BUCKET}")
-                  |> range(start: {start_time}, stop: {end_time})
-                  |> filter(fn: (r) => r["_measurement"] == "sensor_data")
-                  |> filter(fn: (r) => r["machine_id"] == "{machine_id}")
-                  |> filter(fn: (r) => r["_field"] == "value")
-                  |> aggregateWindow(every: {interval}, fn: mean, createEmpty: false)
-                  |> yield(name: "mean")
-            '''
-
-            logger.debug(f"Executing InfluxDB query: {query}")
-
-            result = query_api.query(query, org=config.INFLUXDB_ORG)
-
-            results = []
-            for table in result:
-                for record in table.records:
-                    results.append({
-                        'time': record.get_time().isoformat() if record.get_time() else None,
-                        'machine_id': record.values.get('machine_id'),
-                        'sensor_type': record.values.get('sensor_type'),
-                        'unit': record.values.get('unit'),
-                        'value': record.get_value(),
-                        'field': record.get_field()
-                    })
-
-            logger.info(f"Retrieved {len(results)} data points from InfluxDB")
-            return results
-
-        except Exception as e:
-            logger.error(f"Error querying InfluxDB: {e}", exc_info=True)
-            raise
-        finally:
-            if client:
-                client.close()
+# ============ Configuration (Management Only) ============
+@api_bp.route("/config/update", methods=["POST"])
+@token_required
+@role_required("Management")
+def update_config():
+    """Update system configuration (Management only)"""
+    # This is a demo endpoint to show Management-only access
+    return (
+        jsonify(
+            {
+                "status": "success",
+                "message": "Configuration updated successfully",
+                "updated_by": request.current_user.get("username"),
+                "role": request.current_user.get("role"),
+            }
+        ),
+        200,
+    )

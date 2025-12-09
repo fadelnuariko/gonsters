@@ -3,6 +3,7 @@ import json
 import traceback
 from datetime import datetime
 
+
 class JSONFormatter(logging.Formatter):
     """Custom JSON formatter for structured logging"""
 
@@ -13,16 +14,17 @@ class JSONFormatter(logging.Formatter):
             "message": record.getMessage(),
             "module": record.module,
             "function": record.funcName,
-            "line": record.lineno
+            "line": record.lineno,
         }
 
-        if hasattr(record, 'extra_data'):
+        if hasattr(record, "extra_data"):
             log_data.update(record.extra_data)
 
         if record.exc_info:
-            log_data['exception'] = traceback.format_exception(*record.exc_info)
+            log_data["exception"] = traceback.format_exception(*record.exc_info)
 
         return json.dumps(log_data)
+
 
 def setup_logger(name):
     """Setup logger with JSON formatting"""
@@ -36,5 +38,6 @@ def setup_logger(name):
     logger.addHandler(console_handler)
 
     return logger
+
 
 logger = setup_logger("gonsters")
