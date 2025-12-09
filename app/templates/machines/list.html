@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Machines - GONSTERS IoT{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h2>
+                <i class="material-icons align-middle">precision_manufacturing</i>
+                Machines
+            </h2>
+        </div>
+        <div class="col-md-6 text-right">
+            {% if session.get('user', {}).get('role') in ['Supervisor', 'Management'] %}
+            <a href="{{ url_for('web.machine_create') }}" class="btn btn-primary">
+                <i class="material-icons align-middle">add</i>
+                Create Machine
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            {% if machines %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Location</th>
+                            <th>Sensor Type</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for machine in machines %}
+                        <tr>
+                            <td>{{ machine.id }}</td>
+                            <td><strong>{{ machine.name }}</strong></td>
+                            <td>{{ machine.location }}</td>
+                            <td>
+                                <span class="badge badge-info">{{ machine.sensor_type }}</span>
+                            </td>
+                            <td>
+                                <span class="badge status-{{ machine.status }}">
+                                    {{ machine.status|title }}
+                                </span>
+                            </td>
+                            <td>{{ machine.created_at[:10] if machine.created_at else 'N/A' }}</td>
+                            <td>
+                                <a href="{{ url_for('web.machine_monitor', machine_id=machine.id) }}"
+                                    class="btn btn-sm btn-primary" title="Monitor">
+                                    <i class="material-icons" style="font-size: 16px;">visibility</i>
+                                </a>
+                                {% if session.get('user', {}).get('role') in ['Supervisor', 'Management'] %}
+                                <a href="{{ url_for('web.machine_edit', machine_id=machine.id) }}"
+                                    class="btn btn-sm btn-warning" title="Edit">
+                                    <i class="material-icons" style="font-size: 16px;">edit</i>
+                                </a>
+                                <form method="POST" action="{{ url_for('web.machine_delete', machine_id=machine.id) }}"
+                                    style="display: inline;"
+                                    onsubmit="return confirm('Are you sure you want to delete this machine?');">
+                                    <button type="submit" class="btn btn-sm btn-danger" title="Delete">
+                                        <i class="material-icons" style="font-size: 16px;">delete</i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="material-icons" style="font-size: 64px; color: #BDBDBD;">precision_manufacturing</i>
+                <p class="text-muted mt-3">No machines found.</p>
+                {% if session.get('user', {}).get('role') in ['Supervisor', 'Management'] %}
+                <a href="{{ url_for('web.machine_create') }}" class="btn btn-primary mt-2">
+                    <i class="material-icons align-middle">add</i>
+                    Create Your First Machine
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

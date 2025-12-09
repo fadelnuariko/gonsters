@@ -1,0 +1,299 @@
+/* Material Design Minimalist Theme */
+:root {
+    --primary-color: #1976D2;
+    --secondary-color: #424242;
+    --success-color: #4CAF50;
+    --danger-color: #F44336;
+    --warning-color: #FF9800;
+    --info-color: #2196F3;
+    --light-bg: #FAFAFA;
+    --card-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    --card-shadow-hover: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+body {
+    font-family: 'Roboto', 'Segoe UI', sans-serif;
+    background-color: var(--light-bg);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+}
+
+/* Material Icons Alignment */
+.material-icons.align-middle {
+    vertical-align: middle;
+    font-size: 20px;
+    margin-right: 4px;
+}
+
+/* Cards */
+.card {
+    border: none;
+    border-radius: 8px;
+    box-shadow: var(--card-shadow);
+    transition: box-shadow 0.3s ease;
+    margin-bottom: 20px;
+}
+
+.card:hover {
+    box-shadow: var(--card-shadow-hover);
+}
+
+.card-header {
+    background-color: white;
+    border-bottom: 1px solid #E0E0E0;
+    font-weight: 500;
+    padding: 16px 20px;
+}
+
+.card-body {
+    padding: 20px;
+}
+
+/* Buttons */
+.btn {
+    border-radius: 4px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 8px 16px;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+    background-color: #1565C0;
+    border-color: #1565C0;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.btn-sm {
+    padding: 4px 12px;
+    font-size: 0.875rem;
+}
+
+/* Tables */
+.table {
+    background-color: white;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.table thead th {
+    border-bottom: 2px solid #E0E0E0;
+    font-weight: 500;
+    text-transform: uppercase;
+    font-size: 0.875rem;
+    letter-spacing: 0.5px;
+    color: var(--secondary-color);
+}
+
+.table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+.table tbody tr:hover {
+    background-color: #F5F5F5;
+}
+
+/* Forms */
+.form-control {
+    border-radius: 4px;
+    border: 1px solid #BDBDBD;
+    padding: 10px 12px;
+}
+
+.form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(25, 118, 210, 0.25);
+}
+
+.form-label {
+    font-weight: 500;
+    color: var(--secondary-color);
+    margin-bottom: 8px;
+}
+
+/* Login Page */
+.login-container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.login-card {
+    max-width: 400px;
+    width: 100%;
+}
+
+.login-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.login-header i {
+    font-size: 48px;
+    color: var(--primary-color);
+}
+
+/* Dashboard Stats */
+.stat-card {
+    text-align: center;
+    padding: 24px;
+}
+
+.stat-card .stat-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+.stat-card .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.stat-card .stat-label {
+    font-size: 0.875rem;
+    color: #757575;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-card.primary .stat-icon { color: var(--primary-color); }
+.stat-card.success .stat-icon { color: var(--success-color); }
+.stat-card.warning .stat-icon { color: var(--warning-color); }
+.stat-card.danger .stat-icon { color: var(--danger-color); }
+
+/* Status Badges */
+.badge {
+    padding: 6px 12px;
+    font-weight: 500;
+    border-radius: 12px;
+}
+
+.status-active {
+    background-color: #E8F5E9;
+    color: #2E7D32;
+}
+
+.status-inactive {
+    background-color: #FFEBEE;
+    color: #C62828;
+}
+
+.status-maintenance {
+    background-color: #FFF3E0;
+    color: #E65100;
+}
+
+/* Charts */
+.chart-container {
+    position: relative;
+    height: 300px;
+    margin-top: 20px;
+}
+
+/* Monitoring Page */
+.machine-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background-color: white;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+.status-indicator.healthy {
+    background-color: var(--success-color);
+}
+
+.status-indicator.warning {
+    background-color: var(--warning-color);
+}
+
+.status-indicator.error {
+    background-color: var(--danger-color);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Navbar */
+.navbar-dark .navbar-brand {
+    font-weight: 500;
+    font-size: 1.25rem;
+}
+
+.navbar-dark .nav-link {
+    transition: background-color 0.2s ease;
+    border-radius: 4px;
+    margin: 0 4px;
+}
+
+.navbar-dark .nav-link:hover {
+    background-color: rgba(255,255,255,0.1);
+}
+
+/* Footer */
+.footer {
+    margin-top: auto;
+    border-top: 1px solid #E0E0E0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .stat-card {
+        margin-bottom: 16px;
+    }
+    
+    .table {
+        font-size: 0.875rem;
+    }
+    
+    .btn-sm {
+        padding: 2px 8px;
+        font-size: 0.75rem;
+    }
+}
+
+/* Loading Spinner */
+.spinner-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.spinner-border-custom {
+    width: 3rem;
+    height: 3rem;
+    border-width: 0.3rem;
+}

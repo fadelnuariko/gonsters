@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}Monitor {{ machine.name }} - GONSTERS IoT{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h2>
+                <i class="material-icons align-middle">visibility</i>
+                Monitor: {{ machine.name }}
+            </h2>
+        </div>
+        <div class="col-md-6 text-right">
+            <a href="{{ url_for('web.machines_list') }}" class="btn btn-secondary">
+                <i class="material-icons align-middle">arrow_back</i>
+                Back to Machines
+            </a>
+        </div>
+    </div>
+
+    <!-- Machine Status -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="machine-status">
+                        <div class="status-indicator healthy" id="statusIndicator"></div>
+                        <div>
+                            <strong>Status:</strong>
+                            <span class="badge status-{{ machine.status }}" id="machineStatus">
+                                {{ machine.status|title }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <p class="mb-1"><strong>Location:</strong></p>
+                    <p class="text-muted">{{ machine.location }}</p>
+                </div>
+                <div class="col-md-3">
+                    <p class="mb-1"><strong>Sensor Type:</strong></p>
+                    <p><span class="badge badge-info">{{ machine.sensor_type }}</span></p>
+                </div>
+                <div class="col-md-3">
+                    <p class="mb-1"><strong>Last Updated:</strong></p>
+                    <p class="text-muted" id="lastUpdate">Just now</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Real-time Data -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <i class="material-icons align-middle">show_chart</i>
+                    Historical Data
+                    <span class="badge badge-success float-right" id="autoRefreshBadge">
+                        <i class="material-icons" style="font-size: 14px;">autorenew</i> Auto-refresh: ON
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="sensorChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <i class="material-icons align-middle">thermostat</i>
+                    Current Reading
+                </div>
+                <div class="card-body text-center">
+                    <div class="display-3 mb-3" id="currentValue">--</div>
+                    <p class="text-muted" id="currentUnit">{{ machine.sensor_type }}</p>
+                    <small class="text-muted" id="currentTime">Waiting for data...</small>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-header">
+                    <i class="material-icons align-middle">settings</i>
+                    Controls
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-sm btn-primary btn-block" onclick="refreshData()">
+                        <i class="material-icons align-middle">refresh</i>
+                        Refresh Now
+                    </button>
+                    <button class="btn btn-sm btn-secondary btn-block" onclick="toggleAutoRefresh()">
+                        <i class="material-icons align-middle">pause</i>
+                        <span id="toggleText">Pause Auto-refresh</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-header">
+                    <i class="material-icons align-middle">info</i>
+                    Statistics
+                </div>
+                <div class="card-body">
+                    <p class="mb-2"><strong>Min:</strong> <span id="minValue">--</span></p>
+                    <p class="mb-2"><strong>Max:</strong> <span id="maxValue">--</span></p>
+                    <p class="mb-0"><strong>Avg:</strong> <span id="avgValue">--</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+<script>
+    const machineId = {{ machine.id }};
+    const apiToken = '{{ session.get("token", "") }}';
+    let chart = null;
+    let autoRefreshEnabled = true;
+
+    // Initialize chart
+    function initChart() {
+        const ctx = document.getElementById('sensorChart').getContext('2d');
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: '{{ machine.sensor_type|title }}',
+                    data: [],
+                    borderColor: '#1976D2',
+                    backgroundColor: 'rgba(25, 118, 210, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: false
+                    }
+                }
+            }
+        });
+    }
+
+    // Fetch sensor data
+    async function fetchSensorData() {
+        try {
+            const endTime = new Date().toISOString();
+            const startTime = new Date(Date.now() - 3600000).toISOString(); // Last hour
+
+            const response = await fetch(
+                `/api/v1/data/machine/${machineId}?start_time=${startTime}&end_time=${endTime}&interval=5m`,
+                {
+                    headers: apiToken ? { 'Authorization': `Bearer ${apiToken}` } : {}
+                }
+            );
+
+            if (!response.ok) {
+                console.error('Failed to fetch data');
+                return;
+            }
+
+            const result = await response.json();
+            updateChart(result.data || []);
+            updateStats(result.data || []);
+
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        } catch (error) {
+            console.error('Error fetching sensor data:', error);
+        }
+    }
+
+    // Update chart with new data
+    function updateChart(data) {
+        if (!chart || !data.length) return;
+
+        const labels = data.map(d => new Date(d.time).toLocaleTimeString());
+        const values = data.map(d => d.value);
+
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = values;
+        chart.update();
+
+        // Update current value
+        if (values.length > 0) {
+            const latest = values[values.length - 1];
+            document.getElementById('currentValue').textContent = latest.toFixed(2);
+            document.getElementById('currentTime').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+        }
+    }
+
+    // Update statistics
+    function updateStats(data) {
+        if (!data.length) return;
+
+        const values = data.map(d => d.value);
+        const min = Math.min(...values).toFixed(2);
+        const max = Math.max(...values).toFixed(2);
+        const avg = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2);
+
+        document.getElementById('minValue').textContent = min;
+        document.getElementById('maxValue').textContent = max;
+        document.getElementById('avgValue').textContent = avg;
+    }
+
+    // Refresh data manually
+    function refreshData() {
+        fetchSensorData();
+    }
+
+    // Toggle auto-refresh
+    function toggleAutoRefresh() {
+        autoRefreshEnabled = !autoRefreshEnabled;
+        const badge = document.getElementById('autoRefreshBadge');
+        const toggleText = document.getElementById('toggleText');
+
+        if (autoRefreshEnabled) {
+            badge.innerHTML = '<i class="material-icons" style="font-size: 14px;">autorenew</i> Auto-refresh: ON';
+            badge.className = 'badge badge-success float-right';
+            toggleText.textContent = 'Pause Auto-refresh';
+            window.appUtils.startAutoRefresh(fetchSensorData, 5000);
+        } else {
+            badge.innerHTML = '<i class="material-icons" style="font-size: 14px;">pause</i> Auto-refresh: OFF';
+            badge.className = 'badge badge-secondary float-right';
+            toggleText.textContent = 'Resume Auto-refresh';
+            window.appUtils.stopAutoRefresh();
+        }
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function () {
+        initChart();
+        fetchSensorData();
+
+        // Start auto-refresh (every 5 seconds)
+        window.appUtils.startAutoRefresh(fetchSensorData, 5000);
+    });
+
+    // Stop auto-refresh when leaving page
+    window.addEventListener('beforeunload', function () {
+        window.appUtils.stopAutoRefresh();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - GONSTERS IoT{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2>
+                <i class="material-icons align-middle">dashboard</i>
+                Dashboard
+            </h2>
+            <p class="text-muted">Welcome back, {{ session.get('user', {}).get('username') }}!</p>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row">
+        <div class="col-md-3 col-sm-6">
+            <div class="card">
+                <div class="card-body stat-card primary">
+                    <i class="material-icons stat-icon">precision_manufacturing</i>
+                    <div class="stat-value" id="totalMachines">{{ stats.total_machines or 0 }}</div>
+                    <div class="stat-label">Total Machines</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 col-sm-6">
+            <div class="card">
+                <div class="card-body stat-card success">
+                    <i class="material-icons stat-icon">check_circle</i>
+                    <div class="stat-value" id="activeMachines">{{ stats.active_machines or 0 }}</div>
+                    <div class="stat-label">Active Machines</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 col-sm-6">
+            <div class="card">
+                <div class="card-body stat-card warning">
+                    <i class="material-icons stat-icon">sensors</i>
+                    <div class="stat-value" id="totalSensors">{{ stats.total_sensors or 0 }}</div>
+                    <div class="stat-label">Active Sensors</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 col-sm-6">
+            <div class="card">
+                <div class="card-body stat-card danger">
+                    <i class="material-icons stat-icon">build</i>
+                    <div class="stat-value" id="maintenanceMachines">{{ stats.maintenance_machines or 0 }}</div>
+                    <div class="stat-label">Maintenance</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mt-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <i class="material-icons align-middle">list</i>
+                    Recent Machines
+                </div>
+                <div class="card-body">
+                    {% if machines %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Location</th>
+                                    <th>Sensor Type</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for machine in machines[:5] %}
+                                <tr>
+                                    <td>{{ machine.name }}</td>
+                                    <td>{{ machine.location }}</td>
+                                    <td>
+                                        <span class="badge badge-info">{{ machine.sensor_type }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge status-{{ machine.status }}">
+                                            {{ machine.status|title }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('web.machine_monitor', machine_id=machine.id) }}"
+                                            class="btn btn-sm btn-primary">
+                                            <i class="material-icons" style="font-size: 16px;">visibility</i>
+                                            Monitor
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center py-4">No machines found. Create your first machine to get started!
+                    </p>
+                    {% endif %}
+
+                    <div class="text-center mt-3">
+                        <a href="{{ url_for('web.machines_list') }}" class="btn btn-outline-primary">
+                            View All Machines
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <i class="material-icons align-middle">flash_on</i>
+                    Quick Actions
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <a href="{{ url_for('web.machines_list') }}" class="list-group-item list-group-item-action">
+                            <i class="material-icons align-middle">precision_manufacturing</i>
+                            View All Machines
+                        </a>
+                        {% if session.get('user', {}).get('role') in ['Supervisor', 'Management'] %}
+                        <a href="{{ url_for('web.machine_create') }}" class="list-group-item list-group-item-action">
+                            <i class="material-icons align-middle">add_circle</i>
+                            Create New Machine
+                        </a>
+                        {% endif %}
+                        {% if session.get('user', {}).get('role') == 'Management' %}
+                        <a href="{{ url_for('web.users_list') }}" class="list-group-item list-group-item-action">
+                            <i class="material-icons align-middle">people</i>
+                            Manage Users
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-header">
+                    <i class="material-icons align-middle">info</i>
+                    System Info
+                </div>
+                <div class="card-body">
+                    <p class="mb-2"><strong>Your Role:</strong>
+                        <span class="badge badge-primary">{{ session.get('user', {}).get('role') }}</span>
+                    </p>
+                    <p class="mb-2"><strong>Username:</strong> {{ session.get('user', {}).get('username') }}</p>
+                    <p class="mb-0"><strong>Status:</strong>
+                        <span class="badge badge-success">Online</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
