@@ -132,7 +132,6 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     environment:
       name: production
-      url: http://${{ secrets.VPS_HOST }}:5000
     
     steps:
       - name: Checkout code
