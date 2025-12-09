@@ -1,6 +1,7 @@
 import pytest
 from app.services.auth_service import AuthService
 
+
 def test_password_hashing():
     """Test password hashing and verification"""
     password = "testpassword123"
@@ -10,13 +11,10 @@ def test_password_hashing():
     assert AuthService.verify_password(password, hashed) == True
     assert AuthService.verify_password("wrongpassword", hashed) == False
 
+
 def test_jwt_token_creation():
     """Test JWT token creation and decoding"""
-    data = {
-        "user_id": 1,
-        "username": "testuser",
-        "role": "Operator"
-    }
+    data = {"user_id": 1, "username": "testuser", "role": "Operator"}
 
     token = AuthService.create_access_token(data)
     assert token is not None
@@ -26,6 +24,7 @@ def test_jwt_token_creation():
     assert decoded["user_id"] == 1
     assert decoded["username"] == "testuser"
     assert decoded["role"] == "Operator"
+
 
 def test_role_permissions():
     """Test RBAC role hierarchy"""

@@ -2,6 +2,7 @@ import pytest
 from marshmallow import ValidationError
 from app.models.schemas import MachineMetadataSchema, SensorDataIngestSchema
 
+
 def test_machine_metadata_schema_valid():
     """Test valid machine metadata"""
     schema = MachineMetadataSchema()
@@ -9,12 +10,13 @@ def test_machine_metadata_schema_valid():
         "name": "Test Machine",
         "location": "Factory A",
         "sensor_type": "temperature",
-        "status": "active"
+        "status": "active",
     }
 
     result = schema.load(data)
     assert result["name"] == "Test Machine"
     assert result["sensor_type"] == "temperature"
+
 
 def test_machine_metadata_schema_invalid():
     """Test invalid machine metadata"""
@@ -23,11 +25,12 @@ def test_machine_metadata_schema_invalid():
         "name": "Test Machine",
         "location": "Factory A",
         "sensor_type": "invalid_type",
-        "status": "active"
+        "status": "active",
     }
 
     with pytest.raises(ValidationError):
         schema.load(data)
+
 
 def test_sensor_data_ingest_schema():
     """Test sensor data ingestion schema"""
@@ -41,9 +44,9 @@ def test_sensor_data_ingest_schema():
                 "sensor_type": "temperature",
                 "value": 75.5,
                 "timestamp": "2024-12-09T10:00:00Z",
-                "unit": "celsius"
+                "unit": "celsius",
             }
-        ]
+        ],
     }
 
     result = schema.load(data)
