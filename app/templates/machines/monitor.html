@@ -163,10 +163,10 @@
     async function fetchSensorData() {
         try {
             const endTime = new Date().toISOString();
-            const startTime = new Date(Date.now() - 3600000).toISOString(); // Last hour
+            const startTime = new Date(Date.now() - 1200000).toISOString(); // Last 20 minutes
 
             const response = await fetch(
-                `/api/v1/data/machine/${machineId}?start_time=${startTime}&end_time=${endTime}&interval=5m`,
+                `/api/v1/data/machine/${machineId}?start_time=${startTime}&end_time=${endTime}&interval=2m`,
                 {
                     headers: apiToken ? { 'Authorization': `Bearer ${apiToken}` } : {}
                 }
