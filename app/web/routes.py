@@ -135,7 +135,6 @@ def machine_edit(machine_id):
     machine = response.get("machine")
 
     if request.method == "POST":
-        # Update machine (Note: You'll need to add update method to controller)
         data = {
             "name": request.form.get("name"),
             "location": request.form.get("location"),
@@ -143,10 +142,17 @@ def machine_edit(machine_id):
             "status": request.form.get("status"),
         }
 
-        # For now, we'll just flash a message
-        # TODO: Implement update_machine in MachineController
-        flash(f"Machine '{data['name']}' updated successfully!", "success")
-        return redirect(url_for("web.machines_list"))
+        try:
+            response, status_code = MachineController.update_machine(machine_id, data)
+
+            if status_code == 200:
+                flash(f"Machine '{data['name']}' updated successfully!", "success")
+                return redirect(url_for("web.machines_list"))
+            else:
+                error_msg = response.get("message", "Failed to update machine")
+                flash(error_msg, "danger")
+        except Exception as e:
+            flash(f"Error updating machine: {str(e)}", "danger")
 
     return render_template("machines/form.html", machine=machine)
 
@@ -156,8 +162,16 @@ def machine_edit(machine_id):
 @role_required("Supervisor")
 def machine_delete(machine_id):
     """Delete machine"""
-    # TODO: Implement delete_machine in MachineController
-    flash("Machine deleted successfully!", "success")
+    try:
+        response, status_code = MachineController.delete_machine(machine_id)
+
+        if status_code == 200:
+            flash("Machine deleted successfully!", "success")
+        else:
+            flash(response.get("message", "Failed to delete machine"), "danger")
+    except Exception as e:
+        flash(f"Error deleting machine: {str(e)}", "danger")
+
     return redirect(url_for("web.machines_list"))
 
 

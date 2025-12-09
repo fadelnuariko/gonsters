@@ -110,6 +110,32 @@ class MachineRepository:
 
         return machine
 
+    @staticmethod
+    def delete_machine(machine_id):
+        """Delete machine and invalidate cache"""
+        conn = get_postgres_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            DELETE FROM machine_metadata
+            WHERE id = %s
+            RETURNING id
+        """,
+            (machine_id,),
+        )
+
+        deleted = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        if deleted:
+            cache_service.invalidate_machine_cache(machine_id)
+            logger.info(f"Deleted machine {machine_id} and invalidated cache")
+
+        return deleted is not None
+
 
 class SensorDataRepository:
     """Repository for sensor data operations with InfluxDB"""

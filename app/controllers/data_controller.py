@@ -162,3 +162,49 @@ class MachineController:
         except Exception as e:
             logger.error(f"Error creating machine: {e}")
             return {"status": "error", "message": "Internal server error"}, 500
+
+    @staticmethod
+    def update_machine(machine_id, request_data):
+        """Update existing machine"""
+        try:
+            schema = MachineMetadataSchema()
+            validated_data = schema.load(request_data, partial=True)
+
+            machine = MachineRepository.update_machine(machine_id, validated_data)
+
+            if not machine:
+                return {"status": "error", "message": "Machine not found"}, 404
+
+            logger.info(f"Machine updated: {machine_id}")
+
+            return {
+                "status": "success",
+                "message": "Machine updated successfully",
+                "machine": schema.dump(machine),
+            }, 200
+
+        except ValidationError as e:
+            return {"status": "error", "errors": e.messages}, 400
+        except Exception as e:
+            logger.error(f"Error updating machine: {e}")
+            return {"status": "error", "message": "Internal server error"}, 500
+
+    @staticmethod
+    def delete_machine(machine_id):
+        """Delete machine"""
+        try:
+            deleted = MachineRepository.delete_machine(machine_id)
+
+            if not deleted:
+                return {"status": "error", "message": "Machine not found"}, 404
+
+            logger.info(f"Machine deleted: {machine_id}")
+
+            return {
+                "status": "success",
+                "message": "Machine deleted successfully",
+            }, 200
+
+        except Exception as e:
+            logger.error(f"Error deleting machine: {e}")
+            return {"status": "error", "message": "Internal server error"}, 500

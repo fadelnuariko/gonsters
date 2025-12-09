@@ -49,7 +49,7 @@
                                 <span class="badge badge-info">{{ user.role }}</span>
                                 {% endif %}
                             </td>
-                            <td>{{ user.created_at[:10] if user.created_at else 'N/A' }}</td>
+                            <td>{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else 'N/A' }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
