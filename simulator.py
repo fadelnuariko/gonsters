@@ -112,7 +112,7 @@ def load_machines_from_database():
 
 
 def main():
-    """Main function to run multiple machine simulators"""
+    """Main function to run multiple machine simulators with auto-detection"""
     print("=" * 60)
     print("🏭 Industrial IoT Device Simulator (Database-Integrated)")
     print("=" * 60)
@@ -121,55 +121,73 @@ def main():
     BROKER = os.getenv("MQTT_BROKER", config.MQTT_BROKER)
     PORT = int(os.getenv("MQTT_PORT", config.MQTT_PORT))
     INTERVAL = int(os.getenv("SIMULATOR_INTERVAL", "5"))
+    RELOAD_INTERVAL = int(os.getenv("SIMULATOR_RELOAD_INTERVAL", "60"))
     FACTORY_ID = os.getenv("SIMULATOR_FACTORY_ID", "A")
 
     print(f"\n⚙️  Configuration:")
     print(f"   MQTT Broker: {BROKER}:{PORT}")
-    print(f"   Interval: {INTERVAL} seconds")
+    print(f"   Data Interval: {INTERVAL} seconds")
+    print(f"   Machine Reload: {RELOAD_INTERVAL} seconds")
     print(f"   Factory ID: {FACTORY_ID}")
 
-    # Load machines from database
-    machines_data = load_machines_from_database()
+    # Dictionary to track active simulators {machine_id: simulator}
+    active_simulators = {}
+    last_reload_time = 0
 
-    if not machines_data:
-        print("\n⚠️  No active machines found in database!")
-        print("💡 Create machines using the web dashboard or API first")
-        return
-
-    # Create simulators for each machine
-    simulators = []
-    for machine in machines_data:
-        # Access dictionary keys instead of unpacking tuple
-        sim = MachineSimulator(
-            machine_id=machine["id"],
-            machine_name=machine["name"],
-            sensor_type=machine["sensor_type"],
-            factory_id=FACTORY_ID,
-        )
-        try:
-            sim.connect(BROKER, PORT)
-            simulators.append(sim)
-        except Exception as e:
-            print(f"⚠️  Skipping Machine {machine['id']} due to connection error")
-
-    if not simulators:
-        print("\n❌ No simulators could connect to MQTT broker")
-        print("💡 Make sure MQTT broker is running (mosquitto)")
-        return
-
-    print(
-        f"\n✅ {len(simulators)} machines connected. Publishing data every {INTERVAL} seconds..."
-    )
+    print("\n🔄 Auto-detection enabled - will check for new machines every minute")
     print("Press Ctrl+C to stop\n")
 
     try:
         while True:
-            for sim in simulators:
-                sim.publish_data()
+            current_time = time.time()
+
+            # Reload machines from database periodically
+            if current_time - last_reload_time >= RELOAD_INTERVAL:
+                machines_data = load_machines_from_database()
+                current_machine_ids = {m["id"] for m in machines_data}
+                existing_machine_ids = set(active_simulators.keys())
+
+                # Find new machines to add
+                new_machine_ids = current_machine_ids - existing_machine_ids
+                for machine in machines_data:
+                    if machine["id"] in new_machine_ids:
+                        sim = MachineSimulator(
+                            machine_id=machine["id"],
+                            machine_name=machine["name"],
+                            sensor_type=machine["sensor_type"],
+                            factory_id=FACTORY_ID,
+                        )
+                        try:
+                            sim.connect(BROKER, PORT)
+                            active_simulators[machine["id"]] = sim
+                            print(f"➕ Added: {machine['name']} (ID:{machine['id']})")
+                        except Exception as e:
+                            print(f"⚠️  Failed to add Machine {machine['id']}: {e}")
+
+                # Find deleted machines to remove
+                deleted_machine_ids = existing_machine_ids - current_machine_ids
+                for machine_id in deleted_machine_ids:
+                    sim = active_simulators.pop(machine_id)
+                    sim.client.disconnect()
+                    print(f"➖ Removed: Machine ID {machine_id}")
+
+                last_reload_time = current_time
+
+                if not active_simulators:
+                    print(
+                        "\n⚠️  No active machines. Waiting for machines to be created..."
+                    )
+
+            # Publish data from all active simulators
+            if active_simulators:
+                for sim in active_simulators.values():
+                    sim.publish_data()
+
             time.sleep(INTERVAL)
+
     except KeyboardInterrupt:
         print("\n\n⏹️  Shutting down all simulators...")
-        for sim in simulators:
+        for sim in active_simulators.values():
             sim.client.disconnect()
         print("✅ All simulators stopped")
 
