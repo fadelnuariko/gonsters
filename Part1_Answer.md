@@ -1,4 +1,4 @@
-# Part 1: API Development & Data Modeling
+# Part 1: API Developments & Data Modeling
 
 ## Question 1.1: Database Design (Data Modeling)
 
