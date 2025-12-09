@@ -98,7 +98,10 @@ def load_machines_from_database():
 
         print(f"\n📊 Loaded {len(machines)} active machines from database:")
         for machine in machines:
-            print(f"   - ID {machine[0]}: {machine[1]} ({machine[2]}) at {machine[4]}")
+            # RealDictCursor returns dictionaries, not tuples
+            print(
+                f"   - ID {machine['id']}: {machine['name']} ({machine['sensor_type']}) at {machine['location']}"
+            )
 
         return machines
 
@@ -136,18 +139,18 @@ def main():
     # Create simulators for each machine
     simulators = []
     for machine in machines_data:
-        machine_id, name, sensor_type, status, location = machine
+        # Access dictionary keys instead of unpacking tuple
         sim = MachineSimulator(
-            machine_id=machine_id,
-            machine_name=name,
-            sensor_type=sensor_type,
+            machine_id=machine["id"],
+            machine_name=machine["name"],
+            sensor_type=machine["sensor_type"],
             factory_id=FACTORY_ID,
         )
         try:
             sim.connect(BROKER, PORT)
             simulators.append(sim)
         except Exception as e:
-            print(f"⚠️  Skipping Machine {machine_id} due to connection error")
+            print(f"⚠️  Skipping Machine {machine['id']} due to connection error")
 
     if not simulators:
         print("\n❌ No simulators could connect to MQTT broker")
