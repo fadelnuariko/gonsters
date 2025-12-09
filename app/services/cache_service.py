@@ -68,7 +68,9 @@ class CacheService:
 
             if value:
                 logger.debug(f"Cache hit for key: {key}")
-                return json.loads(value)
+                data = json.loads(value)
+                # Convert ISO datetime strings back to datetime objects
+                return self._deserialize_datetimes(data)
 
             logger.debug(f"Cache miss for key: {key}")
             return None
@@ -76,6 +78,27 @@ class CacheService:
         except Exception as e:
             logger.error(f"Error getting cache key {key}: {e}")
             return None
+
+    def _deserialize_datetimes(self, data):
+        """Convert ISO datetime strings back to datetime objects"""
+        if isinstance(data, dict):
+            result = {}
+            for key, value in data.items():
+                if key in ("created_at", "updated_at", "timestamp") and isinstance(
+                    value, str
+                ):
+                    try:
+                        result[key] = datetime.fromisoformat(value)
+                    except (ValueError, AttributeError):
+                        result[key] = value
+                elif isinstance(value, (dict, list)):
+                    result[key] = self._deserialize_datetimes(value)
+                else:
+                    result[key] = value
+            return result
+        elif isinstance(data, list):
+            return [self._deserialize_datetimes(item) for item in data]
+        return data
 
     def set(self, key: str, value, ttl: int = 300):
         """
