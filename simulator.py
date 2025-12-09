@@ -86,7 +86,7 @@ def load_machines_from_database():
         cursor.execute(
             """
             SELECT id, name, sensor_type, status, location
-            FROM machines
+            FROM machine_metadata
             WHERE status = 'active'
             ORDER BY id
         """
