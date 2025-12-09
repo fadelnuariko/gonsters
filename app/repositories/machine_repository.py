@@ -3,34 +3,55 @@ from influxdb_client import Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 from app.config import config
 from app.utils.logger import logger
-from app.services.cache_service import cache_service, cache_aside
+from app.services.cache_service import cache_service
 from datetime import datetime
 
 class MachineRepository:
-    """Repository for machine metadata operations"""
+    """Repository for machine metadata operations with caching"""
 
     @staticmethod
-    @cache_aside(key_prefix="machines:all", ttl=600)
     def get_all_machines():
         """Get all machines from PostgreSQL with caching"""
+        cache_key = "machines:all"
+
+        cached_machines = cache_service.get(cache_key)
+        if cached_machines is not None:
+            logger.info("Retrieved machines from cache")
+            return cached_machines
+
         conn = get_postgres_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM machine_metadata ORDER BY id")
         machines = cursor.fetchall()
         cursor.close()
         conn.close()
+
+        cache_service.set(cache_key, machines, ttl=300)
+        logger.info("Retrieved machines from database and cached")
+
         return machines
 
     @staticmethod
-    @cache_aside(key_prefix="machine", ttl=600)
     def get_machine_by_id(machine_id):
         """Get machine by ID with caching"""
+        cache_key = f"machine:{machine_id}"
+
+        cached_machine = cache_service.get(cache_key)
+        if cached_machine is not None:
+            logger.info(f"Retrieved machine {machine_id} from cache")
+            return cached_machine
+
         conn = get_postgres_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM machine_metadata WHERE id = %s", (machine_id,))
         machine = cursor.fetchone()
         cursor.close()
         conn.close()
+
+        if machine:
+            cache_service.set(cache_key, machine, ttl=300)
+            logger.info(f"Retrieved machine {machine_id} from database and cached")
+
         return machine
 
     @staticmethod
@@ -47,10 +68,42 @@ class MachineRepository:
         conn.commit()
         cursor.close()
         conn.close()
-        
-        cache_service.invalidate_pattern("machines:*")
-        cache_service.invalidate_pattern("machine:*")
-        
+
+        cache_service.invalidate_machine_cache()
+        logger.info(f"Created machine {machine['id']} and invalidated cache")
+
+        return machine
+
+    @staticmethod
+    def update_machine(machine_id, machine_data):
+        """Update machine and invalidate cache"""
+        conn = get_postgres_connection()
+        cursor = conn.cursor()
+
+        update_fields = []
+        values = []
+        for key, value in machine_data.items():
+            update_fields.append(f"{key} = %s")
+            values.append(value)
+
+        values.append(machine_id)
+
+        query = f"""
+            UPDATE machine_metadata
+            SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+            RETURNING *
+        """
+
+        cursor.execute(query, values)
+        machine = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        cache_service.invalidate_machine_cache(machine_id)
+        logger.info(f"Updated machine {machine_id} and invalidated cache")
+
         return machine
 
 class SensorDataRepository:

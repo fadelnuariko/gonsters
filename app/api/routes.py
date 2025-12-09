@@ -2,10 +2,10 @@ from flask import Blueprint, request, jsonify
 from app.controllers.data_controller import DataController, MachineController
 from app.controllers.auth_controller import AuthController
 from app.api.auth import token_required, role_required
+from app.services.cache_service import cache_service
 
 api_bp = Blueprint('api', __name__)
 
-# ============ Health Check ============
 @api_bp.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -14,7 +14,23 @@ def health_check():
         "service": "gonsters-backend"
     }), 200
 
-# ============ Authentication ============
+@api_bp.route('/cache/clear', methods=['POST'])
+@token_required
+@role_required('Management')
+def clear_cache():
+    """Clear all machine cache (Management only)"""
+    try:
+        cache_service.invalidate_machine_cache()
+        return jsonify({
+            "status": "success",
+            "message": "Cache cleared successfully"
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
 @api_bp.route('/auth/register', methods=['POST'])
 def register():
     """User registration endpoint"""
@@ -36,7 +52,6 @@ def get_current_user():
         "user": request.current_user
     }), 200
 
-# ============ Data Ingestion & Retrieval ============
 @api_bp.route('/data/ingest', methods=['POST'])
 @token_required
 @role_required('Operator')
@@ -59,12 +74,11 @@ def get_machine_data(machine_id):
     )
     return jsonify(response), status_code
 
-# ============ Machine Metadata Management ============
 @api_bp.route('/machines', methods=['GET'])
 @token_required
 @role_required('Operator')
 def get_machines():
-    """Get all machines (Operator+)"""
+    """Get all machines (Operator+) - Uses cache"""
     response, status_code = MachineController.get_all_machines()
     return jsonify(response), status_code
 
@@ -72,7 +86,7 @@ def get_machines():
 @token_required
 @role_required('Operator')
 def get_machine(machine_id):
-    """Get machine by ID (Operator+)"""
+    """Get machine by ID (Operator+) - Uses cache"""
     response, status_code = MachineController.get_machine(machine_id)
     return jsonify(response), status_code
 
@@ -80,17 +94,15 @@ def get_machine(machine_id):
 @token_required
 @role_required('Supervisor')
 def create_machine():
-    """Create new machine (Supervisor+)"""
+    """Create new machine (Supervisor+) - Invalidates cache"""
     response, status_code = MachineController.create_machine(request.json)
     return jsonify(response), status_code
 
-# ============ Configuration (Management Only) ============
 @api_bp.route('/config/update', methods=['POST'])
 @token_required
 @role_required('Management')
 def update_config():
     """Update system configuration (Management only)"""
-    # This is a demo endpoint to show Management-only access
     return jsonify({
         "status": "success",
         "message": "Configuration updated successfully",

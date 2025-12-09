@@ -1,160 +1,135 @@
 import json
-import time
-from functools import wraps
 from app.database import get_redis_client
 from app.utils.logger import logger
 
 class CacheService:
-    """Redis caching service with Cache-Aside Pattern"""
+    """Service for caching operations using Redis"""
 
     def __init__(self):
         self.redis_client = None
-        self.max_retries = 3
-        self.retry_delay = 1  # seconds
+        self.default_ttl = 300  # 5 minutes default TTL
 
     def _get_client(self):
-        """Get Redis client with retry logic"""
-        if self.redis_client is None:
-            for attempt in range(1, self.max_retries + 1):
-                try:
-                    self.redis_client = get_redis_client()
-                    logger.info("Redis connection established")
-                    return self.redis_client
-                except Exception as e:
-                    logger.warning(
-                        f"Temporary Redis connection loss, self-healing retry is initiated (attempt {attempt}/{self.max_retries})",
-                        extra={
-                            'extra_data': {
-                                'attempt': attempt,
-                                'max_retries': self.max_retries,
-                                'error': str(e)
-                            }
-                        }
-                    )
-                    if attempt < self.max_retries:
-                        time.sleep(self.retry_delay)
-                    else:
-                        logger.error(
-                            f"Failed to connect to Redis after {self.max_retries} attempts",
-                            extra={'extra_data': {'error': str(e)}}
-                        )
-                        raise
+        """Get Redis client with connection retry"""
+        if not self.redis_client:
+            try:
+                self.redis_client = get_redis_client()
+                logger.debug("Redis client initialized")
+            except Exception as e:
+                logger.warning(f"Temporary Redis connection loss, self-healing retry is initiated", extra={
+                    'extra_data': {'error': str(e)}
+                })
+                raise
         return self.redis_client
 
     def get(self, key: str):
         """
         Get value from cache
-        
+
         Args:
             key: Cache key
-            
+
         Returns:
-            Cached value (deserialized from JSON) or None if not found
+            Cached value or None if not found
         """
         try:
             client = self._get_client()
             value = client.get(key)
-            
+
             if value:
-                logger.debug(f"Cache hit for key: {key}")
+                logger.debug(f"Cache HIT: {key}")
                 return json.loads(value)
-            
-            logger.debug(f"Cache miss for key: {key}")
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error getting cache key {key}: {e}")
+
+            logger.debug(f"Cache MISS: {key}")
             return None
 
-    def set(self, key: str, value, ttl: int = 300):
+        except Exception as e:
+            logger.warning(f"Cache GET error for key '{key}': {e}")
+            return None
+
+    def set(self, key: str, value, ttl: int = None):
         """
-        Set value in cache
-        
+        Set value in cache with TTL
+
         Args:
             key: Cache key
-            value: Value to cache (will be serialized to JSON)
-            ttl: Time to live in seconds (default: 5 minutes)
+            value: Value to cache (will be JSON serialized)
+            ttl: Time to live in seconds (default: 300)
+
+        Returns:
+            True if successful, False otherwise
         """
         try:
             client = self._get_client()
+            ttl = ttl or self.default_ttl
+
             serialized_value = json.dumps(value)
             client.setex(key, ttl, serialized_value)
-            
-            logger.debug(f"Cache set for key: {key} with TTL: {ttl}s")
-            
+
+            logger.debug(f"Cache SET: {key} (TTL: {ttl}s)")
+            return True
+
         except Exception as e:
-            logger.error(f"Error setting cache key {key}: {e}")
+            logger.warning(f"Cache SET error for key '{key}': {e}")
+            return False
 
     def delete(self, key: str):
-        """Delete key from cache"""
+        """
+        Delete value from cache
+
+        Args:
+            key: Cache key
+
+        Returns:
+            True if successful, False otherwise
+        """
         try:
             client = self._get_client()
             client.delete(key)
-            logger.debug(f"Cache deleted for key: {key}")
-            
-        except Exception as e:
-            logger.error(f"Error deleting cache key {key}: {e}")
 
-    def invalidate_pattern(self, pattern: str):
+            logger.debug(f"Cache DELETE: {key}")
+            return True
+
+        except Exception as e:
+            logger.warning(f"Cache DELETE error for key '{key}': {e}")
+            return False
+
+    def delete_pattern(self, pattern: str):
         """
-        Invalidate all keys matching pattern
-        
+        Delete all keys matching pattern
+
         Args:
-            pattern: Redis key pattern (e.g., "machine:*")
+            pattern: Pattern to match (e.g., 'machine:*')
+
+        Returns:
+            Number of keys deleted
         """
         try:
             client = self._get_client()
             keys = client.keys(pattern)
-            
+
             if keys:
-                client.delete(*keys)
-                logger.info(f"Invalidated {len(keys)} cache keys matching pattern: {pattern}")
-                
+                deleted = client.delete(*keys)
+                logger.debug(f"Cache DELETE pattern '{pattern}': {deleted} keys")
+                return deleted
+
+            return 0
+
         except Exception as e:
-            logger.error(f"Error invalidating cache pattern {pattern}: {e}")
+            logger.warning(f"Cache DELETE pattern error for '{pattern}': {e}")
+            return 0
 
+    def invalidate_machine_cache(self, machine_id: int = None):
+        """
+        Invalidate machine-related cache
 
-def cache_aside(key_prefix: str, ttl: int = 300):
-    """
-    Decorator implementing Cache-Aside Pattern
-    
-    Usage:
-        @cache_aside(key_prefix="machine", ttl=600)
-        def get_machine_by_id(machine_id):
-            # Database query here
-            return machine_data
-    
-    Args:
-        key_prefix: Prefix for cache key
-        ttl: Time to live in seconds
-    """
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            cache = CacheService()
-            
-            # Generate cache key from function arguments
-            cache_key = f"{key_prefix}:{':'.join(map(str, args))}"
-            
-            # Try to get from cache
-            cached_value = cache.get(cache_key)
-            if cached_value is not None:
-                logger.debug(f"Returning cached value for {func.__name__}")
-                return cached_value
-            
-            # Cache miss - execute function
-            logger.debug(f"Cache miss - executing {func.__name__}")
-            result = func(*args, **kwargs)
-            
-            # Store in cache
-            if result is not None:
-                cache.set(cache_key, result, ttl)
-            
-            return result
-        
-        return wrapper
-    return decorator
+        Args:
+            machine_id: Specific machine ID to invalidate, or None for all
+        """
+        if machine_id:
+            self.delete(f"machine:{machine_id}")
+        else:
+            self.delete_pattern("machine:*")
+            self.delete("machines:all")
 
-
-# Singleton instance
 cache_service = CacheService()
