@@ -3,15 +3,26 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15
+    container_name: gonsters-postgres
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: password123
       POSTGRES_DB: gonsters_metadata
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - gonsters-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   influxdb:
     image: influxdb:2.7
+    container_name: gonsters-influxdb
     ports:
       - "8086:8086"
     environment:
@@ -21,16 +32,94 @@ services:
       DOCKER_INFLUXDB_INIT_ORG: myorg
       DOCKER_INFLUXDB_INIT_BUCKET: sensors
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: my-super-secret-token
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    networks:
+      - gonsters-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
-    image: redis:7
+    image: redis:7-alpine
+    container_name: gonsters-redis
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - gonsters-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   mosquitto:
-    image: eclipse-mosquitto
+    image: eclipse-mosquitto:latest
+    container_name: gonsters-mosquitto
     ports:
       - "1883:1883"
       - "9001:9001"
     volumes:
       - ./mosquitto/config:/mosquitto/config
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    networks:
+      - gonsters-network
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/#' -C 1 -i healthcheck -W 3"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gonsters-backend
+    ports:
+      - "5000:5000"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: gonsters_metadata
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: my-super-secret-token
+      INFLUXDB_ORG: myorg
+      INFLUXDB_BUCKET: sensors
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MQTT_BROKER: mosquitto
+      MQTT_PORT: 1883
+      JWT_SECRET_KEY: ayambawang
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRATION_MINUTES: 30
+      FLASK_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    networks:
+      - gonsters-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  influxdb_data:
+  redis_data:
+  mosquitto_data:
+  mosquitto_log:
+
+networks:
+  gonsters-network:
+    driver: bridge

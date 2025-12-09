@@ -10,16 +10,22 @@ from app.services.mqtt_service import mqtt_service
 
 app = create_app()
 
-try:
-    with app.app_context():
-        init_postgres_schema()
-        logger.info("Application initialized successfully")
+def init_app():
+    """Initialize application on startup"""
+    try:
+        with app.app_context():
+            init_postgres_schema()
+            logger.info("Application initialized successfully")
 
-        mqtt_service.connect()
-        logger.info("MQTT service started")
+            mqtt_service.connect()
+            logger.info("MQTT service started")
 
-except Exception as e:
-    logger.error(f"Failed to initialize application: {e}")
+    except Exception as e:
+        logger.error(f"Failed to initialize application: {e}")
+        raise
+
+
+init_app()
 
 if __name__ == '__main__':
     try:
