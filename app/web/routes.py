@@ -99,13 +99,23 @@ def machine_create():
             "status": request.form.get("status", "active"),
         }
 
-        response, status_code = MachineController.create_machine(data)
+        try:
+            response, status_code = MachineController.create_machine(data)
 
-        if status_code == 201:
-            flash(f"Machine '{data['name']}' created successfully!", "success")
-            return redirect(url_for("web.machines_list"))
-        else:
-            flash(response.get("message", "Failed to create machine"), "danger")
+            if status_code == 201:
+                flash(f"Machine '{data['name']}' created successfully!", "success")
+                return redirect(url_for("web.machines_list"))
+            else:
+                # Show detailed error
+                error_msg = response.get("message", "Failed to create machine")
+                errors = response.get("errors", {})
+                if errors:
+                    error_details = ", ".join([f"{k}: {v}" for k, v in errors.items()])
+                    flash(f"{error_msg}: {error_details}", "danger")
+                else:
+                    flash(error_msg, "danger")
+        except Exception as e:
+            flash(f"Error creating machine: {str(e)}", "danger")
 
     return render_template("machines/form.html", machine=None)
 
