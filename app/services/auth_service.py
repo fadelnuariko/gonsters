@@ -4,11 +4,8 @@ from passlib.context import CryptContext
 from app.config import config
 from app.utils.logger import logger
 
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto",
-    bcrypt__rounds=12
-)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
+
 
 class AuthService:
     """Service for authentication and authorization"""
@@ -16,7 +13,7 @@ class AuthService:
     @staticmethod
     def hash_password(password: str) -> str:
         """Hash a password"""
-        if len(password.encode('utf-8')) > 72:
+        if len(password.encode("utf-8")) > 72:
             raise ValueError("Password is too long (max 72 bytes)")
         return pwd_context.hash(password)
 
@@ -43,16 +40,10 @@ class AuthService:
         to_encode = data.copy()
 
         expire = datetime.utcnow() + timedelta(minutes=config.JWT_EXPIRATION_MINUTES)
-        to_encode.update({
-            "exp": expire,
-            "iat": datetime.utcnow(),
-            "type": "access"
-        })
+        to_encode.update({"exp": expire, "iat": datetime.utcnow(), "type": "access"})
 
         encoded_jwt = jwt.encode(
-            to_encode,
-            config.JWT_SECRET_KEY,
-            algorithm=config.JWT_ALGORITHM
+            to_encode, config.JWT_SECRET_KEY, algorithm=config.JWT_ALGORITHM
         )
 
         logger.info(f"JWT token created for user: {data.get('username')}")
@@ -75,9 +66,7 @@ class AuthService:
         """
         try:
             payload = jwt.decode(
-                token,
-                config.JWT_SECRET_KEY,
-                algorithms=[config.JWT_ALGORITHM]
+                token, config.JWT_SECRET_KEY, algorithms=[config.JWT_ALGORITHM]
             )
             return payload
         except JWTError as e:
@@ -91,11 +80,7 @@ class AuthService:
 
         Role hierarchy: Operator < Supervisor < Management
         """
-        role_hierarchy = {
-            'Operator': 1,
-            'Supervisor': 2,
-            'Management': 3
-        }
+        role_hierarchy = {"Operator": 1, "Supervisor": 2, "Management": 3}
 
         user_level = role_hierarchy.get(user_role, 0)
         required_level = role_hierarchy.get(required_role, 0)

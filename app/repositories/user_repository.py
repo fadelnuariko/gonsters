@@ -2,6 +2,7 @@ from app.database import get_postgres_connection
 from app.services.auth_service import AuthService
 from app.utils.logger import logger
 
+
 class UserRepository:
     """Repository for user operations"""
 
@@ -14,11 +15,14 @@ class UserRepository:
         try:
             password_hash = AuthService.hash_password(password)
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO users (username, password_hash, role)
                 VALUES (%s, %s, %s)
                 RETURNING id, username, role, created_at
-            """, (username, password_hash, role))
+            """,
+                (username, password_hash, role),
+            )
 
             user = cursor.fetchone()
             conn.commit()
@@ -41,11 +45,14 @@ class UserRepository:
         cursor = conn.cursor()
 
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT id, username, password_hash, role, created_at
                 FROM users
                 WHERE username = %s
-            """, (username,))
+            """,
+                (username,),
+            )
 
             user = cursor.fetchone()
             return user
@@ -61,11 +68,14 @@ class UserRepository:
         cursor = conn.cursor()
 
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT id, username, role, created_at
                 FROM users
                 WHERE id = %s
-            """, (user_id,))
+            """,
+                (user_id,),
+            )
 
             user = cursor.fetchone()
             return user
@@ -83,7 +93,7 @@ class UserRepository:
             logger.warning(f"Authentication failed: User not found - {username}")
             return None
 
-        if not AuthService.verify_password(password, user['password_hash']):
+        if not AuthService.verify_password(password, user["password_hash"]):
             logger.warning(f"Authentication failed: Invalid password - {username}")
             return None
 

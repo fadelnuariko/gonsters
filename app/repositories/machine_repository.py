@@ -6,6 +6,7 @@ from app.utils.logger import logger
 from app.services.cache_service import cache_service, cache_aside
 from datetime import datetime
 
+
 class MachineRepository:
     """Repository for machine metadata operations"""
 
@@ -38,20 +39,24 @@ class MachineRepository:
         """Create new machine and invalidate cache"""
         conn = get_postgres_connection()
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO machine_metadata (name, location, sensor_type, status)
             VALUES (%(name)s, %(location)s, %(sensor_type)s, %(status)s)
             RETURNING *
-        """, machine_data)
+        """,
+            machine_data,
+        )
         machine = cursor.fetchone()
         conn.commit()
         cursor.close()
         conn.close()
-        
+
         cache_service.invalidate_pattern("machines:*")
         cache_service.invalidate_pattern("machine:*")
-        
+
         return machine
+
 
 class SensorDataRepository:
     """Repository for sensor data operations with InfluxDB"""
@@ -66,22 +71,22 @@ class SensorDataRepository:
 
             points = []
             for data_point in data_points:
-                timestamp = data_point['timestamp']
+                timestamp = data_point["timestamp"]
                 if isinstance(timestamp, str):
-                    timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                    timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
 
-                point = Point("sensor_data") \
-                    .tag("machine_id", str(data_point['machine_id'])) \
-                    .tag("sensor_type", data_point['sensor_type']) \
-                    .tag("unit", data_point['unit']) \
-                    .field("value", float(data_point['value'])) \
+                point = (
+                    Point("sensor_data")
+                    .tag("machine_id", str(data_point["machine_id"]))
+                    .tag("sensor_type", data_point["sensor_type"])
+                    .tag("unit", data_point["unit"])
+                    .field("value", float(data_point["value"]))
                     .time(timestamp)
+                )
                 points.append(point)
 
             write_api.write(
-                bucket=config.INFLUXDB_BUCKET,
-                org=config.INFLUXDB_ORG,
-                record=points
+                bucket=config.INFLUXDB_BUCKET, org=config.INFLUXDB_ORG, record=points
             )
 
             logger.info(f"Successfully wrote {len(points)} data points to InfluxDB")
@@ -95,14 +100,14 @@ class SensorDataRepository:
                 client.close()
 
     @staticmethod
-    def query_sensor_data(machine_id, start_time, end_time, interval='1h'):
+    def query_sensor_data(machine_id, start_time, end_time, interval="1h"):
         """Query sensor data from InfluxDB"""
         client = None
         try:
             client = get_influxdb_client()
             query_api = client.query_api()
 
-            query = f'''
+            query = f"""
                 from(bucket: "{config.INFLUXDB_BUCKET}")
                   |> range(start: {start_time}, stop: {end_time})
                   |> filter(fn: (r) => r["_measurement"] == "sensor_data")
@@ -110,7 +115,7 @@ class SensorDataRepository:
                   |> filter(fn: (r) => r["_field"] == "value")
                   |> aggregateWindow(every: {interval}, fn: mean, createEmpty: false)
                   |> yield(name: "mean")
-            '''
+            """
 
             logger.debug(f"Executing InfluxDB query: {query}")
 
@@ -119,14 +124,20 @@ class SensorDataRepository:
             results = []
             for table in result:
                 for record in table.records:
-                    results.append({
-                        'time': record.get_time().isoformat() if record.get_time() else None,
-                        'machine_id': record.values.get('machine_id'),
-                        'sensor_type': record.values.get('sensor_type'),
-                        'unit': record.values.get('unit'),
-                        'value': record.get_value(),
-                        'field': record.get_field()
-                    })
+                    results.append(
+                        {
+                            "time": (
+                                record.get_time().isoformat()
+                                if record.get_time()
+                                else None
+                            ),
+                            "machine_id": record.values.get("machine_id"),
+                            "sensor_type": record.values.get("sensor_type"),
+                            "unit": record.values.get("unit"),
+                            "value": record.get_value(),
+                            "field": record.get_field(),
+                        }
+                    )
 
             logger.info(f"Retrieved {len(results)} data points from InfluxDB")
             return results
